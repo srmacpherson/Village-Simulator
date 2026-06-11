@@ -1,3 +1,6 @@
 <Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/VillageSimulator.Tests.csproj" />
+  </Folder>
   <Project Path="VillageSimulator.csproj" />
 </Solution>

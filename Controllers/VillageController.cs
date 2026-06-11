@@ -42,7 +42,7 @@ namespace VillageSimulator.Controllers
             _db.BuildQueueItems.Remove(item);
             _db.SaveChanges();
 
-            TempData["UpgradeSuccess"] = "Upgrade cancelled and resources refunded.";
+            TempData?["UpgradeSuccess"] = "Upgrade cancelled and resources refunded.";
 
             return RedirectToAction(nameof(Index));
         }
@@ -73,7 +73,9 @@ namespace VillageSimulator.Controllers
                 })
                 .ToList();
 
-            var msg = TempData["UpgradeError"] as string ?? TempData["UpgradeSuccess"] as string;
+            var msg = TempData != null
+                ? TempData["UpgradeError"] as string ?? TempData["UpgradeSuccess"] as string
+                : null;
 
             return Json(new { queue, msg, wood = village.Wood, clay = village.Clay, iron = village.Iron });
         }
@@ -118,21 +120,34 @@ namespace VillageSimulator.Controllers
                 return NotFound();
             }
 
-            // Calculate cost for next level
-            var cost = GetUpgradeCost(building);
-
-            // Load village resources
-            var village = _db.Villages.Find(building.VillageId);
+            // Load village resources (include buildings so capacities reflect current levels)
+            var village = _db.Villages
+                .Include(v => v.Buildings)
+                .FirstOrDefault(v => v.Id == building.VillageId);
             if (village == null)
                 return NotFound();
 
             _resourceService.UpdateResources(village);
 
+            // Determine effective current level considering queued upgrades for this building
+            var highestQueuedTargetForBuilding = _db.BuildQueueItems
+                .Where(q => q.VillageId == village.Id && q.BuildingType == building.Type)
+                .Select(q => (int?)q.TargetLevel)
+                .Max() ?? 0;
+
+            int effectiveCurrentLevel = Math.Max(building.Level, highestQueuedTargetForBuilding);
+
+            // Calculate cost for next level based on effective level
+            var cost = GetUpgradeCost(effectiveCurrentLevel);
+
             // Check resources
             if (village.Wood < cost.wood || village.Clay < cost.clay || village.Iron < cost.iron)
             {
                 // Not enough resources
-                TempData["UpgradeError"] = "Not enough resources to upgrade.";
+                if (TempData != null)
+                {
+                    TempData["UpgradeError"] = "Not enough resources to upgrade.";
+                }
                 return RedirectToAction(nameof(Index));
             }
 
@@ -141,14 +156,29 @@ namespace VillageSimulator.Controllers
             village.Clay -= cost.clay;
             village.Iron -= cost.iron;
 
-            // Simulate build time
+            // Determine start time: after last queued finish in the village (no simultaneous builds)
+            var lastFinishAcrossVillage = _db.BuildQueueItems
+                .Where(q => q.VillageId == village.Id)
+                .Select(q => (DateTime?)q.FinishTime)
+                .Max();
+
             var start = DateTime.UtcNow;
-            var finish = start.AddMinutes((building.Level + 1) * 1);
+            if (lastFinishAcrossVillage.HasValue && lastFinishAcrossVillage.Value > start)
+            {
+                start = lastFinishAcrossVillage.Value;
+            }
+
+            // Target level is next level after effective current level
+            int targetLevel = effectiveCurrentLevel + 1;
+
+            // Finish time uses the target level as duration in minutes (keeps previous behavior but uses correct level)
+            var finish = start.AddMinutes(targetLevel * 1);
+
             var queueItem = new BuildQueueItem
             {
                 VillageId = village.Id,
                 BuildingType = building.Type,
-                TargetLevel = building.Level + 1,
+                TargetLevel = targetLevel,
                 StartTime = start,
                 FinishTime = finish,
                 WoodCost = cost.wood,
@@ -158,19 +188,27 @@ namespace VillageSimulator.Controllers
             _db.BuildQueueItems.Add(queueItem);
             _db.SaveChanges();
 
-            TempData["UpgradeSuccess"] = "Upgrade started.";
+            if (TempData != null)
+            {
+                TempData["UpgradeSuccess"] = "Upgrade started.";
+            }
 
             return RedirectToAction(nameof(Index));
         }
 
         private (int wood, int clay, int iron) GetUpgradeCost(Building building)
         {
+            return GetUpgradeCost(building.Level);
+        }
+
+        private (int wood, int clay, int iron) GetUpgradeCost(int currentLevel)
+        {
             // Simple cost formula: base cost * (current level + 1)
             int baseWood = 200;
             int baseClay = 150;
             int baseIron = 100;
 
-            int multiplier = building.Level + 1;
+            int multiplier = currentLevel + 1;
 
             return (baseWood * multiplier, baseClay * multiplier, baseIron * multiplier);
         }
