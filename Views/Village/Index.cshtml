@@ -1,0 +1,138 @@
+@model VillageSimulator.ViewModels.VillageViewModel
+
+<h1>@Model.Name</h1>
+
+<h3>Resources</h3>
+<div>Wood: <span id="wood">@Model.Wood</span> / @Model.WoodCapacity</div>
+<div>Clay: <span id="clay">@Model.Clay</span> / @Model.ClayCapacity</div>
+<div>Iron: <span id="iron">@Model.Iron</span> / @Model.IronCapacity</div>
+
+<h2>Buildings</h2>
+<ul>
+@foreach (var b in Model.Buildings)
+{
+    <li>
+        @b.Type - Level @b.Level
+        <form asp-action="Upgrade" method="post" style="display:inline">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@b.Id" />
+            <button type="submit">Upgrade</button>
+        </form>
+    </li>
+}
+</ul>
+
+<div id="upgradeMessage" style="display:@(string.IsNullOrEmpty(Model.UpgradeMessage) ? "none" : "block")">@Model.UpgradeMessage</div>
+
+@Html.AntiForgeryToken()
+
+<h4>Build Queue</h4>
+<ul id="queueList">
+@foreach (var q in Model.BuildQueue)
+{
+    <li>
+        @q.BuildingType to level @q.TargetLevel - Started: @q.StartTime.ToLocalTime()
+        - Remaining: <span class="remaining" data-finish="@q.FinishTime.ToString("o")">calculating...</span>
+        <form asp-action="CancelUpgrade" method="post" style="display:inline" onsubmit="return confirm('Cancel upgrade and refund resources?');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@q.Id" />
+            <button type="submit">Cancel</button>
+        </form>
+    </li>
+}
+</ul>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    function pad(n) { return n < 10 ? '0' + n : n; }
+    var reloading = false;
+
+    function updateRemaining() {
+        var els = document.querySelectorAll('.remaining');
+        var anyCompleted = false;
+        els.forEach(function(el) {
+            var finish = new Date(el.getAttribute('data-finish'));
+            var now = new Date();
+            var diff = finish - now;
+            if (diff <= 0) {
+                el.textContent = 'Completed';
+                anyCompleted = true;
+                return;
+            }
+            var secs = Math.floor(diff / 1000);
+            var hours = Math.floor(secs / 3600);
+            secs %= 3600;
+            var mins = Math.floor(secs / 60);
+            var seconds = secs % 60;
+            el.textContent = hours + ':' + pad(mins) + ':' + pad(seconds);
+        });
+
+        // When any countdown reaches zero, we will fetch fresh queue data from server
+        if (anyCompleted && !reloading) {
+            reloading = true;
+            setTimeout(function() { fetchQueueAndUpdate(); }, 1100);
+        }
+    }
+
+    function renderQueue(data) {
+        // Update resources
+        document.querySelector('#wood').textContent = data.wood;
+        document.querySelector('#clay').textContent = data.clay;
+        document.querySelector('#iron').textContent = data.iron;
+
+        // Update message
+        var msgEl = document.querySelector('#upgradeMessage');
+        if (data.msg) {
+            msgEl.textContent = data.msg;
+            msgEl.style.display = 'block';
+        } else {
+            msgEl.style.display = 'none';
+        }
+
+        // Update queue list
+        var ul = document.querySelector('#queueList');
+        ul.innerHTML = '';
+        data.queue.forEach(function(q) {
+            var li = document.createElement('li');
+            // JSON is serialized using camelCase names by default, use those keys here
+            li.innerHTML = (q.buildingType || q.BuildingType) + ' to level ' + (q.targetLevel || q.TargetLevel) + ' - starts ' + new Date(q.startTime || q.StartTime).toLocaleString() + ' - Remaining: <span class="remaining" data-finish="' + (q.finishTime || q.FinishTime) + '">calculating...</span>' +
+                ' <button type="button" onclick="cancelUpgrade(' + (q.id || q.Id) + ')">Cancel</button>';
+            ul.appendChild(li);
+        });
+    }
+
+    // Expose cancelUpgrade as a global so inline onclick handlers can call it
+    window.cancelUpgrade = function(id) {
+        var tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
+        var token = tokenEl ? tokenEl.value : '';
+        fetch('/Village/CancelUpgrade', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'RequestVerificationToken': token
+            },
+            body: new URLSearchParams({ id: id })
+        }).then(function(resp) {
+            if (resp.ok) {
+                fetchQueueAndUpdate();
+            }
+        });
+    };
+
+    function fetchQueueAndUpdate() {
+        fetch('/Village/Queue')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                renderQueue(data);
+                // Immediately update remaining timers after replacing the DOM so they don't show the placeholder
+                try { updateRemaining(); } catch (e) {}
+                reloading = false;
+            })
+            .catch(function() { reloading = false; });
+    }
+
+    updateRemaining();
+    setInterval(updateRemaining, 1000);
+    setInterval(fetchQueueAndUpdate, 5000);
+});
+</script>
