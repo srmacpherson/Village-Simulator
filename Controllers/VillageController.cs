@@ -34,15 +34,28 @@ namespace VillageSimulator.Controllers
             if (village == null)
                 return NotFound();
 
-            // Refund resources
-            village.Wood += item.WoodCost;
-            village.Clay += item.ClayCost;
-            village.Iron += item.IronCost;
+            // Find dependent queued upgrades for the same building (higher target levels)
+            var dependent = _db.BuildQueueItems
+                .Where(q => q.VillageId == item.VillageId && q.BuildingType == item.BuildingType && q.TargetLevel > item.TargetLevel)
+                .ToList();
 
+            // Sum refunds including the primary item
+            int refundWood = item.WoodCost + dependent.Sum(d => d.WoodCost);
+            int refundClay = item.ClayCost + dependent.Sum(d => d.ClayCost);
+            int refundIron = item.IronCost + dependent.Sum(d => d.IronCost);
+
+            // Apply refunds
+            village.Wood += refundWood;
+            village.Clay += refundClay;
+            village.Iron += refundIron;
+
+            // Remove primary and dependent items
+            _db.BuildQueueItems.RemoveRange(dependent);
             _db.BuildQueueItems.Remove(item);
             _db.SaveChanges();
 
-            TempData?["UpgradeSuccess"] = "Upgrade cancelled and resources refunded.";
+            TempData?["UpgradeSuccess"] = $"Upgrade cancelled and resources refunded. " +
+               $"{dependent.Count + 1} upgrade(s) cancelled";
 
             return RedirectToAction(nameof(Index));
         }
@@ -69,7 +82,9 @@ namespace VillageSimulator.Controllers
                     BuildingType = q.BuildingType.ToString(),
                     q.TargetLevel,
                     StartTime = q.StartTime.ToString("o"),
-                    FinishTime = q.FinishTime.ToString("o")
+                    FinishTime = q.FinishTime.ToString("o"),
+                    AffectsOthers = _db.BuildQueueItems
+                        .Any(other => other.VillageId == q.VillageId && other.BuildingType == q.BuildingType && other.TargetLevel > q.TargetLevel)
                 })
                 .ToList();
 
