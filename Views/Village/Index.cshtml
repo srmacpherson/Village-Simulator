@@ -33,7 +33,7 @@
     <li>
         @q.BuildingType to level @q.TargetLevel - Started: @q.StartTime.ToLocalTime()
         - Remaining: <span class="remaining" data-finish="@q.FinishTime.ToString("o")">calculating...</span>
-        <form asp-action="CancelUpgrade" method="post" style="display:inline" onsubmit="return confirm('Cancel upgrade and refund resources?');">
+            <form asp-action="CancelUpgrade" method="post" style="display:inline" onsubmit="return confirm('Cancel upgrade and refund resources? Warning: This may affect other upgrades in the queue.');">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@q.Id" />
             <button type="submit">Cancel</button>
