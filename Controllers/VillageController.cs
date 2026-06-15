@@ -54,6 +54,26 @@ namespace VillageSimulator.Controllers
             _db.BuildQueueItems.Remove(item);
             _db.SaveChanges();
 
+            // Recalculate start/finish times for remaining queue items in this village so timers shift
+            var remaining = _db.BuildQueueItems
+                .Where(q => q.VillageId == item.VillageId)
+                .OrderBy(q => q.StartTime)
+                .ToList();
+
+            var nextStart = DateTime.UtcNow;
+            foreach (var remainingItem in remaining)
+            {
+                // duration uses target level as minutes (keeps previous behavior)
+                remainingItem.StartTime = nextStart;
+                remainingItem.FinishTime = remainingItem.StartTime.AddMinutes(remainingItem.TargetLevel * 1);
+                nextStart = remainingItem.FinishTime;
+            }
+
+            if (remaining.Count > 0)
+            {
+                _db.SaveChanges();
+            }
+
             TempData?["UpgradeSuccess"] = $"Upgrade cancelled and resources refunded. " +
                $"{dependent.Count + 1} upgrade(s) cancelled";
 
@@ -116,7 +136,11 @@ namespace VillageSimulator.Controllers
                 ClayCapacity = village.ClayCapacity.ToString(),
                 IronCapacity = village.IronCapacity.ToString(),
                 Buildings = village.Buildings,
-                BuildQueue = _db.BuildQueueItems.Where(q => q.VillageId == village.Id).ToList(),
+                BuildQueue = _db.BuildQueueItems
+                    .Where(q => q.VillageId == village.Id)
+                    .OrderBy(q => q.StartTime)
+                    .ThenBy(q => q.Id)
+                    .ToList(),
                 UpgradeMessage = TempData["UpgradeError"] as string ?? TempData["UpgradeSuccess"] as string,
                 HQLevel = village.HQLevel.ToString(),
                 WallLevel = village.WallLevel.ToString()

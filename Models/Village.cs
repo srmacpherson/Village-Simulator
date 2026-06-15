@@ -23,6 +23,12 @@ public class Village
 	// Last time resources were updated
 	public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 
+	// Fractional remainder of produced resources carried between updates
+	// These allow production to accumulate when UpdateResources is called frequently
+	public double WoodFraction { get; set; }
+	public double ClayFraction { get; set; }
+	public double IronFraction { get; set; }
+
 	// Capacities derived from the associated building levels
 	public int WoodCapacity => BaseStorage + (Buildings.FirstOrDefault(b => b.Type == BuildingType.WoodCamp)?.Level ?? 0) * PerLevelStorage;
 	public int ClayCapacity => BaseStorage + (Buildings.FirstOrDefault(b => b.Type == BuildingType.ClayPit)?.Level ?? 0) * PerLevelStorage;

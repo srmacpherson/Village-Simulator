@@ -31,7 +31,14 @@
 @foreach (var buildQueueItem in Model.BuildQueue)
 {
     <li>
-            @buildQueueItem.BuildingType to level @buildQueueItem.TargetLevel - Started: @buildQueueItem.StartTime.ToLocalTime()
+            @{
+                // Determine whether this queue item is currently in progress (use UTC for comparison)
+                var nowUtc = DateTime.UtcNow;
+                var startUtc = buildQueueItem.StartTime.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(buildQueueItem.StartTime, DateTimeKind.Utc) : buildQueueItem.StartTime.ToUniversalTime();
+                var finishUtc = buildQueueItem.FinishTime.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(buildQueueItem.FinishTime, DateTimeKind.Utc) : buildQueueItem.FinishTime.ToUniversalTime();
+                var whenLabel = (nowUtc >= startUtc && nowUtc < finishUtc) ? "Started: " : "Starts: ";
+            }
+            @buildQueueItem.BuildingType to level @buildQueueItem.TargetLevel - @whenLabel @buildQueueItem.StartTime.ToLocalTime()
             - Remaining: <span class="remaining" data-finish="@buildQueueItem.FinishTime.ToString("o")">calculating...</span>
             @{
                 bool affects = Model.BuildQueue.Any(i => i.BuildingType == buildQueueItem.BuildingType && i.TargetLevel > buildQueueItem.TargetLevel);
@@ -99,7 +106,11 @@ document.addEventListener('DOMContentLoaded', function () {
             var li = document.createElement('li');
             // JSON is serialized using camelCase names by default, use those keys here
             var affects = q.affectsOthers || q.AffectsOthers || false;
-            li.innerHTML = (q.buildingType || q.BuildingType) + ' to level ' + (q.targetLevel || q.TargetLevel) + ' - starts ' + new Date(q.startTime || q.StartTime).toLocaleString() + ' - Remaining: <span class="remaining" data-finish="' + (q.finishTime || q.FinishTime) + '">calculating...</span>' +
+            var start = new Date(q.startTime || q.StartTime);
+            var finish = new Date(q.finishTime || q.FinishTime);
+            var now = new Date();
+            var whenLabel = (now >= start && now < finish) ? 'Started: ' : 'starts ';
+            li.innerHTML = (q.buildingType || q.BuildingType) + ' to level ' + (q.targetLevel || q.TargetLevel) + ' - ' + whenLabel + start.toLocaleString() + ' - Remaining: <span class="remaining" data-finish="' + (q.finishTime || q.FinishTime) + '">calculating...</span>' +
                 ' <button type="button" onclick="cancelUpgradeConfirm(' + (q.id || q.Id) + ',' + affects + ')">Cancel</button>';
             ul.appendChild(li);
         });

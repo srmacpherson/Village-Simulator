@@ -21,15 +21,30 @@ public class ResourceService
 
         if (timeSinceLastUpdated > 0)
         {
-            // Calculate produced resources (per-hour rates) and convert to whole units
-            int producedWood = (int)Math.Floor(GetWoodProduction(village) * timeSinceLastUpdated);
-            int producedClay = (int)Math.Floor(GetClayProduction(village) * timeSinceLastUpdated);
-            int producedIron = (int)Math.Floor(GetIronProduction(village) * timeSinceLastUpdated);
+            // Calculate produced resources (per-hour rates)
+            double producedWood = GetWoodProduction(village) * timeSinceLastUpdated;
+            double producedClay = GetClayProduction(village) * timeSinceLastUpdated;
+            double producedIron = GetIronProduction(village) * timeSinceLastUpdated;
+
+            // Add fractional parts to village's fractional accumulators
+            village.WoodFraction += producedWood;
+            village.ClayFraction += producedClay;
+            village.IronFraction += producedIron;
+
+            // Convert whole units from the fractional accumulators
+            int addWood = (int)Math.Floor(village.WoodFraction);
+            int addClay = (int)Math.Floor(village.ClayFraction);
+            int addIron = (int)Math.Floor(village.IronFraction);
+
+            // Subtract used whole units from the fractions
+            village.WoodFraction -= addWood;
+            village.ClayFraction -= addClay;
+            village.IronFraction -= addIron;
 
             // Add and clamp to capacity
-            village.Wood = Math.Min(village.Wood + producedWood, village.WoodCapacity);
-            village.Clay = Math.Min(village.Clay + producedClay, village.ClayCapacity);
-            village.Iron = Math.Min(village.Iron + producedIron, village.IronCapacity);
+            village.Wood = Math.Min(village.Wood + addWood, village.WoodCapacity);
+            village.Clay = Math.Min(village.Clay + addClay, village.ClayCapacity);
+            village.Iron = Math.Min(village.Iron + addIron, village.IronCapacity);
         }
 
         // Process completed build queue items for this village
@@ -65,7 +80,34 @@ public class ResourceService
         village.LastUpdated = DateTime.UtcNow;
     }
 
-    private double GetWoodProduction(Village village) => 1.0;
-    private double GetClayProduction(Village village) => 0.8;
-    private double GetIronProduction(Village village) => 0.5;
+    private double GetWoodProduction(Village village)
+    {
+        int woodBaseProduction = 1000;
+
+        int buildingLevel = village.Buildings.FirstOrDefault(b => b.Type == BuildingType.WoodCamp)?.Level ?? 0;
+
+        double multiplier = buildingLevel * 0.8;
+
+        return woodBaseProduction * multiplier;
+    }
+    private double GetClayProduction(Village village)
+    {
+        int clayBaseProduction = 800;
+
+        int buildingLevel = village.Buildings.FirstOrDefault(b => b.Type == BuildingType.ClayPit)?.Level ?? 0;
+
+        double multiplier = buildingLevel * 0.7;
+
+        return clayBaseProduction * multiplier;
+    }
+    private double GetIronProduction(Village village)
+    {
+        int ironBaseProduction = 500;
+
+        int buildingLevel = village.Buildings.FirstOrDefault(b => b.Type == BuildingType.IronMine)?.Level ?? 0;
+
+        double multiplier = buildingLevel * 0.6;
+
+        return ironBaseProduction * multiplier;
+    }
 }

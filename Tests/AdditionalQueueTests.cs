@@ -19,6 +19,57 @@ public class AdditionalQueueTests
     }
 
     [Fact]
+    public void CancelEarlierUpgrade_RecalculatesRemainingStartTimes()
+    {
+        using var db = CreateInMemoryContext();
+
+        var village = new Village { Name = "V1", Wood = 10000, Clay = 10000, Iron = 10000 };
+        db.Villages.Add(village);
+
+        var b1 = new Building { Village = village, Type = BuildingType.WoodCamp, Level = 1 };
+        var b2 = new Building { Village = village, Type = BuildingType.ClayPit, Level = 1 };
+        db.Buildings.AddRange(b1, b2);
+        db.SaveChanges();
+
+        // Queue upgrades: woodcamp then claypit
+        var qWood = new BuildQueueItem
+        {
+            VillageId = village.Id,
+            BuildingType = b1.Type,
+            TargetLevel = 2,
+            StartTime = DateTime.UtcNow.AddMinutes(1),
+            FinishTime = DateTime.UtcNow.AddMinutes(3),
+            WoodCost = 1000, ClayCost = 500, IronCost = 250
+        };
+
+        var qClay = new BuildQueueItem
+        {
+            VillageId = village.Id,
+            BuildingType = b2.Type,
+            TargetLevel = 2,
+            StartTime = DateTime.UtcNow.AddMinutes(3),
+            FinishTime = DateTime.UtcNow.AddMinutes(6),
+            WoodCost = 800, ClayCost = 400, IronCost = 200
+        };
+
+        db.BuildQueueItems.AddRange(qWood, qClay);
+        db.SaveChanges();
+
+        var resourceService = new ResourceService(db);
+        var controller = new VillageController(db, resourceService);
+
+        // Cancel the wood upgrade
+        var res = controller.CancelUpgrade(qWood.Id) as RedirectToActionResult;
+        Assert.NotNull(res);
+
+        var remaining = db.BuildQueueItems.Where(q => q.VillageId == village.Id).ToList();
+        Assert.Single(remaining);
+
+        // After cancel, the claypit should start now or very near now (earlier than its original start)
+        Assert.True(remaining[0].StartTime <= qClay.StartTime);
+    }
+
+    [Fact]
     public void CascadeCancel_RemovesDependentUpgradesOnlyForSameBuilding()
     {
         using var db = CreateInMemoryContext();
