@@ -28,14 +28,17 @@
 
 <h4>Build Queue</h4>
 <ul id="queueList">
-@foreach (var q in Model.BuildQueue)
+@foreach (var buildQueueItem in Model.BuildQueue)
 {
     <li>
-        @q.BuildingType to level @q.TargetLevel - Started: @q.StartTime.ToLocalTime()
-        - Remaining: <span class="remaining" data-finish="@q.FinishTime.ToString("o")">calculating...</span>
-            <form asp-action="CancelUpgrade" method="post" style="display:inline" onsubmit="return confirm('Cancel upgrade and refund resources? Warning: This may affect other upgrades in the queue.');">
+            @buildQueueItem.BuildingType to level @buildQueueItem.TargetLevel - Started: @buildQueueItem.StartTime.ToLocalTime()
+            - Remaining: <span class="remaining" data-finish="@buildQueueItem.FinishTime.ToString("o")">calculating...</span>
+            @{
+                bool affects = Model.BuildQueue.Any(i => i.BuildingType == buildQueueItem.BuildingType && i.TargetLevel > buildQueueItem.TargetLevel);
+            }
+            <form asp-action="CancelUpgrade" method="post" style="display:inline" onsubmit="return confirm('@(affects ? "Cancel upgrade and refund resources? This will also cancel dependent upgrades for this building." : "Cancel upgrade and refund resources?")');">
             @Html.AntiForgeryToken()
-            <input type="hidden" name="id" value="@q.Id" />
+                <input type="hidden" name="id" value="@buildQueueItem.Id" />
             <button type="submit">Cancel</button>
         </form>
     </li>
@@ -95,14 +98,19 @@ document.addEventListener('DOMContentLoaded', function () {
         data.queue.forEach(function(q) {
             var li = document.createElement('li');
             // JSON is serialized using camelCase names by default, use those keys here
+            var affects = q.affectsOthers || q.AffectsOthers || false;
             li.innerHTML = (q.buildingType || q.BuildingType) + ' to level ' + (q.targetLevel || q.TargetLevel) + ' - starts ' + new Date(q.startTime || q.StartTime).toLocaleString() + ' - Remaining: <span class="remaining" data-finish="' + (q.finishTime || q.FinishTime) + '">calculating...</span>' +
-                ' <button type="button" onclick="cancelUpgrade(' + (q.id || q.Id) + ')">Cancel</button>';
+                ' <button type="button" onclick="cancelUpgradeConfirm(' + (q.id || q.Id) + ',' + affects + ')">Cancel</button>';
             ul.appendChild(li);
         });
     }
 
     // Expose cancelUpgrade as a global so inline onclick handlers can call it
-    window.cancelUpgrade = function(id) {
+    window.cancelUpgrade = function(id) { cancelUpgradeConfirm(id, false); };
+
+    window.cancelUpgradeConfirm = function(id, affects) {
+        var message = affects ? 'Cancel upgrade and refund resources? This will also cancel dependent upgrades for this building.' : 'Cancel upgrade and refund resources?';
+        if (!confirm(message)) return;
         var tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
         var token = tokenEl ? tokenEl.value : '';
         fetch('/Village/CancelUpgrade', {
