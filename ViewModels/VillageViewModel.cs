@@ -12,9 +12,10 @@ public class VillageViewModel
     public required string WoodCapacity { get; init; }
     public required string ClayCapacity { get; init; }
     public required string IronCapacity { get; init; }
-    public List<Building> Buildings { get; init; } = new List<Building>();
     public required string HQLevel { get; init; }
     public required string WallLevel { get; init; }
-    public List<BuildQueueItem> BuildQueue { get; init; } = new List<BuildQueueItem>();
+    public required string WarehouseLevel { get; init; }
     public string? UpgradeMessage { get; init; }
+    public List<Building> Buildings { get; init; } = [];
+    public List<BuildQueueItem> BuildQueue { get; init; } = [];
 }

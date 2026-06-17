@@ -1,8 +1,5 @@
-using System;
-using System.Linq;
-using VillageSimulator.Models;
 using VillageSimulator.Data;
-using Microsoft.EntityFrameworkCore;
+using VillageSimulator.Models;
 
 namespace VillageSimulator.Services;
 
@@ -71,6 +68,12 @@ public class ResourceService
                 else
                 {
                     building.Level = item.TargetLevel;
+                }
+
+                // If the completed build was the warehouse, update the village-level WarehouseLevel
+                if (item.BuildingType == BuildingType.Warehouse)
+                {
+                    village.WarehouseLevel = item.TargetLevel;
                 }
 
                 _db.BuildQueueItems.Remove(item);

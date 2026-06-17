@@ -3,9 +3,9 @@
 <h1>@Model.Name</h1>
 
 <h3>Resources</h3>
-<div>Wood: <span id="wood">@Model.Wood</span> / @Model.WoodCapacity</div>
-<div>Clay: <span id="clay">@Model.Clay</span> / @Model.ClayCapacity</div>
-<div>Iron: <span id="iron">@Model.Iron</span> / @Model.IronCapacity</div>
+<div>Wood: <span id="wood">@Model.Wood</span> / <span id="woodCap">@Model.WoodCapacity</span></div>
+<div>Clay: <span id="clay">@Model.Clay</span> / <span id="clayCap">@Model.ClayCapacity</span></div>
+<div>Iron: <span id="iron">@Model.Iron</span> / <span id="ironCap">@Model.IronCapacity</span></div>
 
 <h2>Buildings</h2>
 <ul>
@@ -56,6 +56,10 @@
 document.addEventListener('DOMContentLoaded', function () {
     function pad(n) { return n < 10 ? '0' + n : n; }
     var reloading = false;
+    // previous capacity values to avoid unnecessary DOM writes
+    var prevWoodCap = document.querySelector('#woodCap') ? document.querySelector('#woodCap').textContent : null;
+    var prevClayCap = document.querySelector('#clayCap') ? document.querySelector('#clayCap').textContent : null;
+    var prevIronCap = document.querySelector('#ironCap') ? document.querySelector('#ironCap').textContent : null;
 
     function updateRemaining() {
         var els = document.querySelectorAll('.remaining');
@@ -89,6 +93,19 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelector('#wood').textContent = data.wood;
         document.querySelector('#clay').textContent = data.clay;
         document.querySelector('#iron').textContent = data.iron;
+        // Update capacities (avoid unnecessary DOM writes)
+        function setCap(selector, newVal, prevValRef) {
+            var el = document.querySelector(selector);
+            if (!el || typeof newVal === 'undefined') return prevValRef;
+            var newStr = String(newVal);
+            if (prevValRef !== newStr) {
+                el.textContent = newStr;
+            }
+            return newStr;
+        }
+        prevWoodCap = setCap('#woodCap', data.woodCapacity, prevWoodCap);
+        prevClayCap = setCap('#clayCap', data.clayCapacity, prevClayCap);
+        prevIronCap = setCap('#ironCap', data.ironCapacity, prevIronCap);
 
         // Update message
         var msgEl = document.querySelector('#upgradeMessage');

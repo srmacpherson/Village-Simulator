@@ -55,14 +55,15 @@ using (var scope = app.Services.CreateScope())
             Iron = 500,
             HQLevel = 5,
             WallLevel = 3,
-            Buildings = new System.Collections.Generic.List<Building>
-            {
-                new Building { Type = BuildingType.WoodCamp, Level = 1 },
-                new Building { Type = BuildingType.ClayPit, Level = 1 },
-                new Building { Type = BuildingType.IronMine, Level = 1 },
-                new Building { Type = BuildingType.HQ, Level = 5 },
-                new Building { Type = BuildingType.Wall, Level = 3 }
-            }
+            Buildings =
+            [
+                new() { Type = BuildingType.WoodCamp, Level = 1 },
+                new() { Type = BuildingType.ClayPit, Level = 1 },
+                new() { Type = BuildingType.IronMine, Level = 1 },
+                new() { Type = BuildingType.HQ, Level = 5 },
+                new() { Type = BuildingType.Warehouse, Level = 1 },
+                new() { Type = BuildingType.Wall, Level = 3 }
+            ]
         };
 
         db.Villages.Add(village);

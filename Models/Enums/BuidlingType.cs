@@ -4,5 +4,6 @@ public enum BuildingType
     Wall,
     WoodCamp,
     ClayPit,
-    IronMine
+    IronMine,
+    Warehouse,
 }
